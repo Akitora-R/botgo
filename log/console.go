@@ -10,60 +10,83 @@ import (
 
 var _ Logger = (*consoleLogger)(nil)
 
-// consoleLogger 命令行日志实现
-type consoleLogger struct{}
-
-// Debug 日志
-func (consoleLogger) Debug(v ...interface{}) {
-	output("Debug", fmt.Sprint(v...))
+type consoleLogger struct {
+	Level Level
 }
 
-// Info 日志
-func (consoleLogger) Info(v ...interface{}) {
-	output("Info", fmt.Sprint(v...))
+var levelS = []string{"TRACE", "DEBUG", "INFO", "WARN", "ERROR"}
+
+type Level int
+
+func (l Level) String() string {
+	return levelS[l]
 }
 
-// Warn 日志
-func (consoleLogger) Warn(v ...interface{}) {
-	output("Warning", fmt.Sprint(v...))
+const (
+	TraceLevel Level = iota
+	DebugLevel
+	InfoLevel
+	WarnLevel
+	ErrorLevel
+)
+
+func (l *consoleLogger) evalLevel(level Level) bool {
+	return l.Level <= level
 }
 
-// Error
-func (consoleLogger) Error(v ...interface{}) {
-	output("Error", fmt.Sprint(v...))
+func (l *consoleLogger) Trace(v ...interface{}) {
+	l.output(TraceLevel, fmt.Sprint(v...))
 }
 
-// Debugf Debug Format 日志
-func (consoleLogger) Debugf(format string, v ...interface{}) {
-	output("Debug", fmt.Sprintf(format, v...))
+func (l *consoleLogger) Debug(v ...interface{}) {
+	l.output(DebugLevel, fmt.Sprint(v...))
 }
 
-// Infof Info Format 日志
-func (consoleLogger) Infof(format string, v ...interface{}) {
-	output("Info", fmt.Sprintf(format, v...))
+func (l *consoleLogger) Info(v ...interface{}) {
+	l.output(InfoLevel, fmt.Sprint(v...))
 }
 
-// Warnf Warning Format 日志
-func (consoleLogger) Warnf(format string, v ...interface{}) {
-	output("Warning", fmt.Sprintf(format, v...))
+func (l *consoleLogger) Warn(v ...interface{}) {
+	l.output(WarnLevel, fmt.Sprint(v...))
 }
 
-// Errorf Error Format 日志
-func (consoleLogger) Errorf(format string, v ...interface{}) {
-	output("Error", fmt.Sprintf(format, v...))
+func (l *consoleLogger) Error(v ...interface{}) {
+	l.output(ErrorLevel, fmt.Sprint(v...))
 }
 
-// Sync 控制台 logger 不需要 sync
-func (consoleLogger) Sync() error {
+func (l *consoleLogger) Tracef(format string, v ...interface{}) {
+	l.output(TraceLevel, fmt.Sprintf(format, v...))
+}
+
+func (l *consoleLogger) Debugf(format string, v ...interface{}) {
+	l.output(DebugLevel, fmt.Sprintf(format, v...))
+}
+
+func (l *consoleLogger) Infof(format string, v ...interface{}) {
+	l.output(InfoLevel, fmt.Sprintf(format, v...))
+}
+
+func (l *consoleLogger) Warnf(format string, v ...interface{}) {
+	l.output(WarnLevel, fmt.Sprintf(format, v...))
+}
+
+func (l *consoleLogger) Errorf(format string, v ...interface{}) {
+	l.output(ErrorLevel, fmt.Sprintf(format, v...))
+}
+
+func (l *consoleLogger) Sync() error {
 	return nil
 }
 
-func output(level string, v ...interface{}) {
+func (l *consoleLogger) output(level Level, v ...interface{}) {
+	if !l.evalLevel(level) {
+		return
+	}
 	pc, file, line, _ := runtime.Caller(3)
 	file = filepath.Base(file)
 	funcName := strings.TrimPrefix(filepath.Ext(runtime.FuncForPC(pc).Name()), ".")
 
-	logFormat := "[%s] %s %s:%d:%s " + fmt.Sprint(v...) + "\n"
+	logFormat := "%-7v %s %-17s: %s " + fmt.Sprint(v...) + "\n"
 	date := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Printf(logFormat, level, date, file, line, funcName)
+	fmt.Printf(logFormat, fmt.Sprintf("[%v]", level), date, fmt.Sprintf("[%s:%d]", file, line), funcName)
 }

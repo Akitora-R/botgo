@@ -4,7 +4,10 @@ package log
 // DefaultLogger 默认logger
 var DefaultLogger = Logger(new(consoleLogger))
 
-// Debug log.Debug
+func Trace(v ...interface{}) {
+	DefaultLogger.Trace(v...)
+}
+
 func Debug(v ...interface{}) {
 	DefaultLogger.Debug(v...)
 }
@@ -22,6 +25,10 @@ func Warn(v ...interface{}) {
 // Error log.Error
 func Error(v ...interface{}) {
 	DefaultLogger.Error(v...)
+}
+
+func Tracef(format string, v ...interface{}) {
+	DefaultLogger.Tracef(format, v...)
 }
 
 // Debugf log.Debugf
