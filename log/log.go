@@ -2,7 +2,7 @@
 package log
 
 // DefaultLogger 默认logger
-var DefaultLogger = Logger(new(consoleLogger))
+var DefaultLogger = Logger(&consoleLogger{Level: InfoLevel})
 
 func Trace(v ...interface{}) {
 	DefaultLogger.Trace(v...)
