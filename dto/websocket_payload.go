@@ -12,6 +12,7 @@ type WSPayload struct {
 
 // WSPayloadBase 基础消息结构，排除了 data
 type WSPayloadBase struct {
+	Id     string    `json:"id,omitempty"`
 	OPCode OPCode    `json:"op"`
 	Seq    uint32    `json:"s,omitempty"`
 	Type   EventType `json:"t,omitempty"`
