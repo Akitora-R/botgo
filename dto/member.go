@@ -2,9 +2,9 @@ package dto
 
 // Member 群成员
 type Member struct {
-	GuildID  string    `json:"guild_id"`
+	GuildID  string    `json:"guild_id,omitempty"`
 	JoinedAt Timestamp `json:"joined_at"`
-	Nick     string    `json:"nick"`
+	Nick     string    `json:"nick,omitempty"`
 	User     *User     `json:"user"`
 	Roles    []string  `json:"roles"`
 	OpUserID string    `json:"op_user_id,omitempty"`
