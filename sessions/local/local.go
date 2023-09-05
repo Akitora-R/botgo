@@ -3,6 +3,7 @@ package local
 
 import (
 	"fmt"
+	"github.com/tencent-connect/botgo/event"
 	"time"
 
 	"github.com/tencent-connect/botgo/dto"
@@ -23,7 +24,7 @@ type ChanManager struct {
 }
 
 // Start 启动本地 session manager
-func (l *ChanManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intents *dto.Intent) error {
+func (l *ChanManager) Start(apInfo *dto.WebsocketAP, token *token.Token, handler event.Handler) error {
 	defer log.Sync()
 	if err := manager.CheckSessionLimit(apInfo); err != nil {
 		log.Errorf("[ws/session/local] session limited apInfo: %+v", apInfo)
@@ -39,7 +40,7 @@ func (l *ChanManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intents
 		session := dto.Session{
 			URL:     apInfo.URL,
 			Token:   *token,
-			Intent:  *intents,
+			Intent:  handler.GetIntent(),
 			LastSeq: 0,
 			Shards: dto.ShardConfig{
 				ShardID:    i,
@@ -52,7 +53,7 @@ func (l *ChanManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intents
 	for session := range l.sessionChan {
 		// MaxConcurrency 代表的是每 5s 可以连多少个请求
 		time.Sleep(startInterval)
-		go l.newConnect(session)
+		go l.newConnect(session, handler)
 	}
 	return nil
 }
@@ -61,7 +62,7 @@ func (l *ChanManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intents
 // 如果能够 resume，则往 sessionChan 中放入带有 sessionID 的 session
 // 如果不能，则清理掉 sessionID，将 session 放入 sessionChan 中
 // session 的启动，交给 start 中的 for 循环执行，session 不自己递归进行重连，避免递归深度过深
-func (l *ChanManager) newConnect(session dto.Session) {
+func (l *ChanManager) newConnect(session dto.Session, handler event.Handler) {
 	defer func() {
 		// panic 留下日志，放回 session
 		if err := recover(); err != nil {
@@ -69,7 +70,7 @@ func (l *ChanManager) newConnect(session dto.Session) {
 			l.sessionChan <- session
 		}
 	}()
-	wsClient := websocket.ClientImpl.New(session)
+	wsClient := websocket.ClientImpl.New(session, handler)
 	if err := wsClient.Connect(); err != nil {
 		log.Error(err)
 		l.sessionChan <- session // 连接失败，丢回去队列排队重连

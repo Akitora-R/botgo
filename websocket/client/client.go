@@ -26,12 +26,13 @@ func Setup() {
 }
 
 // New 新建一个连接对象
-func (c *Client) New(session dto.Session) websocket.WebSocket {
+func (c *Client) New(session dto.Session, handler event.Handler) websocket.WebSocket {
 	return &Client{
 		messageQueue:    make(messageChan, DefaultQueueSize),
 		session:         &session,
 		closeChan:       make(closeErrorChan, 10),
 		heartBeatTicker: time.NewTicker(60 * time.Second), // 先给一个默认 ticker，在收到 hello 包之后，会 reset
+		handler:         handler,
 	}
 }
 
@@ -44,6 +45,7 @@ type Client struct {
 	user            *dto.WSUser
 	closeChan       closeErrorChan
 	heartBeatTicker *time.Ticker // 用于维持定时心跳
+	handler         event.Handler
 }
 
 type messageChan chan *dto.WSPayload
@@ -73,7 +75,7 @@ func (c *Client) Listening() error {
 	// reading message
 	go c.readMessageToQueue()
 	// read message from queue and handle,in goroutine to avoid business logic block closeChan and heartBeatTicker
-	go c.listenMessageAndHandle()
+	go c.listenAndHandle()
 
 	// 接收 resume signal
 	resumeSignal := make(chan os.Signal, 1)
@@ -219,6 +221,30 @@ func (c *Client) listenMessageAndHandle() {
 		}
 		// 解析具体事件，并投递给业务注册的 handler
 		if err := event.ParseAndHandle(payload); err != nil {
+			log.Errorf("%s parseAndHandle failed, %v", c.session, err)
+		}
+	}
+	log.Infof("%s message queue is closed", c.session)
+}
+
+func (c *Client) listenAndHandle() {
+	defer func() {
+		// panic，一般是由于业务自己实现的 handle 不完善导致
+		// 打印日志后，关闭这个连接，进入重连流程
+		if err := recover(); err != nil {
+			websocket.PanicHandler(err, c.session)
+			c.closeChan <- fmt.Errorf("panic: %v", err)
+		}
+	}()
+	for payload := range c.messageQueue {
+		c.saveSeq(payload.Seq)
+		// ready 事件需要特殊处理
+		if payload.Type == "READY" {
+			c.readyHandler(payload)
+			continue
+		}
+		// 解析具体事件，并投递给业务注册的 handler
+		if err := c.handler.ParseAndHandle(payload); err != nil {
 			log.Errorf("%s parseAndHandle failed, %v", c.session, err)
 		}
 	}

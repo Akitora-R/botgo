@@ -2,12 +2,13 @@ package websocket
 
 import (
 	"github.com/tencent-connect/botgo/dto"
+	"github.com/tencent-connect/botgo/event"
 )
 
 // WebSocket 需要实现的接口
 type WebSocket interface {
 	// New 创建一个新的ws实例，需要传递 session 对象
-	New(session dto.Session) WebSocket
+	New(session dto.Session, handler event.Handler) WebSocket
 	// Connect 连接到 wss 地址
 	Connect() error
 	// Identify 鉴权连接

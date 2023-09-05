@@ -2,7 +2,6 @@ package dto
 
 import (
 	"fmt"
-
 	"github.com/tencent-connect/botgo/token"
 )
 

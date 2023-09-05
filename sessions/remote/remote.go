@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/tencent-connect/botgo/event"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -52,7 +53,7 @@ func New(client *redis.Client, opts ...Option) *RedisManager {
 }
 
 // Start 启动 redis 的 session 管理器
-func (r *RedisManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intents *dto.Intent) error {
+func (r *RedisManager) Start(apInfo *dto.WebsocketAP, token *token.Token, handler event.Handler) error {
 	defer log.Sync()
 	if err := manager.CheckSessionLimit(apInfo); err != nil {
 		log.Errorf("[ws/session/redis] session limited apInfo: %+v", apInfo)
@@ -72,7 +73,8 @@ func (r *RedisManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intent
 	if err := distributeLock.Lock(ctx, distributeLockExpireTime); err == nil {
 		log.Infof("[ws/session/redis] got distribute lock! i will do distributeSession, key: %s", r.clusterKey)
 		// 抢到锁的进行初次分发
-		if err = r.distributeSession(apInfo, token, intents); err != nil {
+		intent := handler.GetIntent()
+		if err = r.distributeSession(apInfo, token, &intent); err != nil {
 			log.Errorf("[ws/session/redis] distribute sessions failed: %v", err)
 			return err
 		}
@@ -86,10 +88,10 @@ func (r *RedisManager) Start(apInfo *dto.WebsocketAP, token *token.Token, intent
 	// 对于没有抢到锁的服务，当ws异常，把session放回到 redis list 中，重新分发
 	go r.sessionProducer(startInterval)
 
-	return r.consume(startInterval)
+	return r.consume(startInterval, handler)
 }
 
-func (r *RedisManager) consume(startInterval time.Duration) error {
+func (r *RedisManager) consume(startInterval time.Duration, handler event.Handler) error {
 	log.Debug("[ws/session/redis] start consume for session")
 	for {
 		// brpop 返回 key value
@@ -113,7 +115,7 @@ func (r *RedisManager) consume(startInterval time.Duration) error {
 			continue
 		}
 
-		go r.newConnect(*session)
+		go r.newConnect(*session, handler)
 		time.Sleep(startInterval) // 启动一个连接后，等待一下，避免触发服务端的并发控制
 	}
 }
@@ -128,7 +130,7 @@ func (r *RedisManager) getShardLockKey(session dto.Session) string {
 // 如果能够 resume，则往 sessionChan 中放入带有 sessionID 的 session
 // 如果不能，则清理掉 sessionID，将 session 放入 sessionChan 中
 // session 的启动，交给 start 中的 for 循环执行，session 不自己递归进行重连，避免递归深度过深
-func (r *RedisManager) newConnect(session dto.Session) {
+func (r *RedisManager) newConnect(session dto.Session, handler event.Handler) {
 	ctx := context.Background()
 	// 锁 shard，避免针对相同 shard 消费重复了
 	shardLock := lock.New(r.getShardLockKey(session), uuid.NewString(), r.client)
@@ -139,7 +141,7 @@ func (r *RedisManager) newConnect(session dto.Session) {
 	}
 	go shardLock.StartRenew(ctx, shardLockExpireTime)
 
-	wsClient := websocket.ClientImpl.New(session)
+	wsClient := websocket.ClientImpl.New(session, handler)
 	if err := wsClient.Connect(); err != nil {
 		log.Error(err)
 		r.sessionProduceChan <- session // 连接失败，丢回去队列排队重连
