@@ -5,6 +5,8 @@ import "github.com/tencent-connect/botgo/dto"
 type Handler interface {
 	GetIntent() dto.Intent
 	ParseAndHandle(payload *dto.WSPayload) error
+	GetReadyHandler() ReadyHandler
+	GetErrorNotifyHandler() ErrorNotifyHandler
 }
 
 type HandlerImpl struct {
@@ -69,6 +71,14 @@ func NewHandler(handlers ...any) *HandlerImpl {
 
 func (hi *HandlerImpl) GetIntent() dto.Intent {
 	return hi.Intent
+}
+
+func (hi *HandlerImpl) GetReadyHandler() ReadyHandler {
+	return hi.Ready
+}
+
+func (hi *HandlerImpl) GetErrorNotifyHandler() ErrorNotifyHandler {
+	return hi.ErrorNotify
 }
 
 func (hi *HandlerImpl) registerForumHandlers(i dto.Intent, handlers ...interface{}) dto.Intent {

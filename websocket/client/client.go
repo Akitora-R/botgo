@@ -46,6 +46,7 @@ type Client struct {
 	closeChan       closeErrorChan
 	heartBeatTicker *time.Ticker // 用于维持定时心跳
 	handler         event.Handler
+	ResumeSignal    syscall.Signal
 }
 
 type messageChan chan *dto.WSPayload
@@ -79,8 +80,8 @@ func (c *Client) Listening() error {
 
 	// 接收 resume signal
 	resumeSignal := make(chan os.Signal, 1)
-	if websocket.ResumeSignal >= syscall.SIGHUP {
-		signal.Notify(resumeSignal, websocket.ResumeSignal)
+	if c.ResumeSignal >= syscall.SIGHUP {
+		signal.Notify(resumeSignal, c.ResumeSignal)
 	}
 
 	// handler message
@@ -101,9 +102,9 @@ func (c *Client) Listening() error {
 			if wss.IsUnexpectedCloseError(err, 4009) {
 				err = errs.New(errs.CodeConnCloseCantResume, err.Error())
 			}
-			if event.DefaultHandlers.ErrorNotify != nil {
+			if c.handler.GetErrorNotifyHandler() != nil {
 				// 通知到使用方错误
-				event.DefaultHandlers.ErrorNotify(err)
+				c.handler.GetErrorNotifyHandler()(err)
 			}
 			return err
 		case <-c.heartBeatTicker.C:
@@ -301,7 +302,7 @@ func (c *Client) readyHandler(payload *dto.WSPayload) {
 		Bot:      readyData.User.Bot,
 	}
 	// 调用自定义的 ready 回调
-	if event.DefaultHandlers.Ready != nil {
-		event.DefaultHandlers.Ready(payload, readyData)
+	if c.handler.GetReadyHandler() != nil {
+		c.handler.GetReadyHandler()(payload, readyData)
 	}
 }
