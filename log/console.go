@@ -2,10 +2,10 @@ package log
 
 import (
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 var _ Logger = (*consoleLogger)(nil)
@@ -23,8 +23,7 @@ func (l Level) String() string {
 }
 
 const (
-	TraceLevel Level = iota
-	DebugLevel
+	DebugLevel Level = iota
 	InfoLevel
 	WarnLevel
 	ErrorLevel
@@ -32,10 +31,6 @@ const (
 
 func (l *consoleLogger) evalLevel(level Level) bool {
 	return l.Level <= level
-}
-
-func (l *consoleLogger) Trace(v ...interface{}) {
-	l.output(TraceLevel, fmt.Sprint(v...))
 }
 
 func (l *consoleLogger) Debug(v ...interface{}) {
@@ -52,10 +47,6 @@ func (l *consoleLogger) Warn(v ...interface{}) {
 
 func (l *consoleLogger) Error(v ...interface{}) {
 	l.output(ErrorLevel, fmt.Sprint(v...))
-}
-
-func (l *consoleLogger) Tracef(format string, v ...interface{}) {
-	l.output(TraceLevel, fmt.Sprintf(format, v...))
 }
 
 func (l *consoleLogger) Debugf(format string, v ...interface{}) {
@@ -86,7 +77,17 @@ func (l *consoleLogger) output(level Level, v ...interface{}) {
 	file = filepath.Base(file)
 	funcName := strings.TrimPrefix(filepath.Ext(runtime.FuncForPC(pc).Name()), ".")
 
-	logFormat := "%-7v %s %-17s: %s " + fmt.Sprint(v...) + "\n"
-	date := time.Now().Format("2006-01-02 15:04:05")
-	fmt.Printf(logFormat, fmt.Sprintf("[%v]", level), date, fmt.Sprintf("[%s:%d]", file, line), funcName)
+	//logFormat := "%-7v %s %-17s: %s " + fmt.Sprint(v...) + "\n"
+	//date := time.Now().Format("2006-01-02 15:04:05")
+	//fmt.Printf(logFormat, fmt.Sprintf("[%v]", level), date, fmt.Sprintf("[%s:%d]", file, line), funcName)
+	switch level {
+	case DebugLevel:
+		slog.Debug(fmt.Sprint(v...), "pos", fmt.Sprintf("[%s:%d]", file, line), "func", funcName)
+	case InfoLevel:
+		slog.Info(fmt.Sprint(v...), "pos", fmt.Sprintf("[%s:%d]", file, line), "func", funcName)
+	case WarnLevel:
+		slog.Warn(fmt.Sprint(v...), "pos", fmt.Sprintf("[%s:%d]", file, line), "func", funcName)
+	case ErrorLevel:
+		slog.Error(fmt.Sprint(v...), "pos", fmt.Sprintf("[%s:%d]", file, line), "func", funcName)
+	}
 }
